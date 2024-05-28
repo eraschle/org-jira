@@ -9,7 +9,7 @@
 ;; URL: https://github.com/ahungry/org-jira
 ;; Version: 3.1.1
 ;; Keywords: ahungry jira org bug tracker
-;; Package-Requires: ((emacs "24.5") (cl-lib "0.5") (request "0.2.0") (s "0.0.0"))
+;; Package-Requires: ((emacs "25.1") (cl-lib "0.5") (request "0.2.0") (s "0.0.0"))
 
 ;; This file is not part of GNU Emacs.
 
@@ -80,11 +80,10 @@
   (let ((slots (mapcar (lambda (slot) (aref slot 1)) (eieio-class-slots (eieio-object-class rec)))))
     (setq slots (cl-remove-if (lambda (s) (not (slot-boundp rec s))) slots))
     (apply #'concat
-     (mapcar (lambda (slot)
-               (let ((slot (intern (org-jira-sdk-to-string slot))))
-                 (format "\n%+16s:   %s" slot (slot-value rec (intern (org-jira-sdk-to-string slot)))))
-               )
-             slots))))
+           (mapcar (lambda (slot)
+                     (let ((slot (intern (org-jira-sdk-to-string slot))))
+                       (format "\n%+16s:   %s" slot (slot-value rec (intern (org-jira-sdk-to-string slot))))))
+                   slots))))
 
 (defun org-jira-sdk-path (alist key-chain)
   "Query a nested path in some type of ALIST by traversing down the keys of KEY-CHAIN."
@@ -147,10 +146,10 @@
 (cl-defmethod org-jira-sdk-from-data ((rec org-jira-sdk-issue))
   (cl-flet ((path (keys) (org-jira-sdk-path (oref rec data) keys))
             (field (keys)
-                   (let* ((org-name (car keys))
-                          (jira-field-id (org-jira--org->api-field-id org-name))
-                         (path (cdr keys)))
-                     (org-jira-sdk-path (oref rec data) (cons 'fields (cons jira-field-id path))))))
+              (let* ((org-name (car keys))
+                     (jira-field-id (org-jira--org->api-field-id org-name))
+                     (path (cdr keys)))
+                (org-jira-sdk-path (oref rec data) (cons 'fields (cons jira-field-id path))))))
     (org-jira-sdk-issue
      :assignee (field '(assignee displayName))
      :components (mapconcat (lambda (c) (org-jira-sdk-path c '(name))) (field '(components)) ", ")

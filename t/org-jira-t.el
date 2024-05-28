@@ -165,9 +165,9 @@
     ))
 
 (ert-deftest org-jira-format-clock-test ()
-    (should
-     (string= "CLOCK: [2017-02-26 Sun 00:08]--[2017-02-26 Sun 01:08]"
-              (org-jira-format-clock '("2017-02-26 Sun 00:08" "2017-02-26 Sun 01:08")))))
+  (should
+   (string= "CLOCK: [2017-02-26 Sun 00:08]--[2017-02-26 Sun 01:08]"
+            (org-jira-format-clock '("2017-02-26 Sun 00:08" "2017-02-26 Sun 01:08")))))
 
 (ert-deftest org-jira-org-clock-to-jira-worklog-test ()
   (let ((result
@@ -196,12 +196,10 @@ CLOCK:")))
 
 (ert-deftest org-jira-sort-org-clocks-test ()
   (let* ((clocks '(("2017-02-26 Sun 00:08" "2017-02-26 Sun 01:08" "Some comment here" "10101")
-                     ("2017-03-16 Thu 22:25" "2017-03-16 Thu 22:57" "Add 32 minutes" "10200"))
-                   )
+                   ("2017-03-16 Thu 22:25" "2017-03-16 Thu 22:57" "Add 32 minutes" "10200")))
          (result (org-jira-sort-org-clocks clocks)))
 
-    (should (string= "2017-03-16 Thu 22:25" (car (car result))))
-    ))
+    (should (string= "2017-03-16 Thu 22:25" (car (car result))))))
 
 ;;  This test sort of sucks, as its just confirming we get back some strings.
 (ert-deftest org-jira-decode-test ()
