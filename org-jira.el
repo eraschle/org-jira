@@ -135,6 +135,7 @@
 (require 'dash)
 (require 'jiralib)
 (require 'org-jira-sdk)
+(require 'org-jira-parser)
 
 (defconst org-jira-version "4.3.1"
   "Current version of org-jira.el.")
@@ -754,6 +755,13 @@ it isn't already on."
 
 (defun org-jira-get-project-lead (proj)
   (org-jira-find-value proj 'lead 'name))
+
+
+;;;###autoload
+(defun org-jira-get-user-name-by (account-id)
+  "Get user full name of ACCOUNT-ID or nil."
+  (cdr (assoc 'displayName (jiralib-get-user account-id))))
+
 
 ;; This is mapped to accountId and not username, so we need nil not blank string.
 (defun org-jira-get-assignable-users (project-key)
@@ -1561,7 +1569,10 @@ ISSUES is a list of `org-jira-sdk-issue' records."
   (let* ((issue-id (org-jira-get-from-org 'issue 'key)) ; Really the key
          (filename (org-jira-filename))
          (comment-id (org-jira-get-from-org 'comment 'id))
-         (comment (replace-regexp-in-string "^  " "" (org-jira-get-comment-body comment-id))))
+         (comment (replace-regexp-in-string
+                   "^  " ""
+                   (org-jira-parse-comment
+                    (org-jira-get-comment-body comment-id)))))
     (lexical-let ((issue-id issue-id)
                   (filename filename))
       (let ((callback-edit
@@ -1802,7 +1813,10 @@ Expects input in format such as: [2017-04-05 Wed 01:00]--[2017-04-05 Wed 01:46] 
           (org-jira-entry-put (point) "updated" updated))
         (goto-char (point-max))
         ;;  Insert 2 spaces of indentation so Jira markup won't cause org-markup
-        (org-jira-insert (replace-regexp-in-string "^" "  " (or body "")))))))
+        (org-jira-insert
+         (replace-regexp-in-string
+          "^" "  " (org-jira-parse-comment
+                    (or body "") t)))))))
 
 (defun org-jira-update-comments-for-issue (Issue)
   "Update the comments for the specified ISSUE issue."
