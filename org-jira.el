@@ -11,7 +11,7 @@
 ;; URL: https://github.com/ahungry/org-jira
 ;; Version: 4.3.3
 ;; Keywords: ahungry jira org bug tracker
-;; Package-Requires: ((emacs "27.1") (cl-lib "0.5") (request "0.2.0") (dash "2.14.1"))
+;; Package-Requires: ((emacs "28.1") (cl-lib "0.5") (request "0.2.0") (dash "2.14.1"))
 
 ;; This file is not part of GNU Emacs.
 
@@ -135,6 +135,7 @@
 (require 'dash)
 (require 'jiralib)
 (require 'org-jira-sdk)
+(require 'org-jira-parse)
 
 (defconst org-jira-version "4.3.1"
   "Current version of org-jira.el.")
@@ -351,7 +352,7 @@ List of properties for each plist:
   :type '(alist :value-type plist))
 
 (defcustom org-jira-issue-field-show-null-values nil
-  "If non-nil, always show null values in the properties list,
+  "If non-nil, always show null values in the properties list.
 The value is substituted as `org-jira-issue-field-null-value'."
   :group 'org-jira
   :type 'boolean)
@@ -468,7 +469,10 @@ Known values are 'github and 'bitbucket."
 
 (defvar org-jira-verbosity 'debug)
 
-(defun org-jira-log (s) (when (eq 'debug org-jira-verbosity) (message "%s" s)))
+(defun org-jira-log (s)
+  "Log S to message if `org-jira-verbosity' is debug."
+  (when (eq 'debug org-jira-verbosity)
+    (message "%s" s)))
 
 (defmacro ensure-on-issue (&rest body)
   "Make sure we are on an issue heading, before executing BODY."
@@ -494,7 +498,7 @@ Known values are 'github and 'bitbucket."
        ,@body)))
 
 (defmacro org-jira-freeze-ui (&rest body)
-  "Freeze the UI layout for the user as much as possible."
+  "Freeze the UI layout for insert BODY much as possible."
   (declare (debug t)
            (indent 0))
   `(save-excursion
@@ -535,7 +539,7 @@ Used to override the default description/etc. fields with custom fields."
   '(:location 'property :name nil :writeable nil :type nil))
 
 (defun org-jira--get-custom-field-property (id prop)
-  "Gets the Org type of a custom field with ID."
+  "Gets the Org type of a custom PROP with ID."
   (let ((plist (-if-let (pl (assoc id org-jira-issue-custom-fields-alist))
                    (cdr pl)
                  org-jira--default-field-properties)))
@@ -547,7 +551,8 @@ Used to override the default description/etc. fields with custom fields."
     (string-replace " " "-" name)))
 
 (defun org-jira--get-custom-field-name (id &optional ensure)
-  "Gets the name of a custom field with ID."
+  "Get the name of a custom field with ID.
+If ENSURE is non-nil check if name is nil."
   (let* ((id-str (symbol-name id))
          (name (or (org-jira--get-custom-field-property id :name)
                    (org-jira--get-default-property-name id)))
@@ -576,7 +581,7 @@ Used to override the default description/etc. fields with custom fields."
              ,@body))))))
 
 (defmacro ensure-on-issue-id-with-filename (issue-id filename &rest body)
-  "Just do some work on ISSUE-ID, execute BODY."
+  "Just do some work on ISSUE-ID in FILENAME and execute BODY."
   (declare (debug t)
            (indent 1))
   (let ((issue-id-var (make-symbol "issue-id"))
@@ -659,7 +664,7 @@ Used to override the default description/etc. fields with custom fields."
        ,@body)))
 
 (defun org-jira--ensure-working-dir ()
-  "Ensure that the org-jira-working-dir exists"
+  "Ensure that the org-jira-working-dir exists."
   (unless (file-exists-p org-jira-working-dir)
     (error (format "org-jira directory does not exist! Run (make-directory \"%s\")" org-jira-working-dir))
     )
@@ -755,9 +760,17 @@ it isn't already on."
 (defun org-jira-get-project-lead (proj)
   (org-jira-find-value proj 'lead 'name))
 
+
+;;;###autoload
+(defun org-jira-get-user-name-by (account-id)
+  "Get user full name of ACCOUNT-ID or nil."
+  (cdr (assoc 'displayName (jiralib-get-user account-id))))
+
+
 ;; This is mapped to accountId and not username, so we need nil not blank string.
 (defun org-jira-get-assignable-users (project-key)
-  "Get the list of assignable users for PROJECT-KEY, adding user set jira-users first."
+  "Get the list of assignable users for PROJECT-KEY.
+adding user set jira-users first."
   (append
    '(("Unassigned" . nil))
    org-jira-users
@@ -766,8 +779,9 @@ it isn't already on."
                    (org-jira-decode (cdr (assoc 'accountId user)))))
            (jiralib-get-users project-key))))
 
+
 (defun org-jira-get-reporter-candidates (project-key)
-  "Get the list of assignable users for PROJECT-KEY, adding user set jira-users first."
+  "Get the list of assignable reporters for PROJECT-KEY."
   (append
    org-jira-users
    (mapcar (lambda (user)
@@ -1048,6 +1062,7 @@ jql."
   (let ((jql (format "id = %s" id)))
     (jiralib-do-jql-search jql)))
 
+
 (defun org-jira-get-issue-by-fixversion (fixversion-id)
   "Get an issue by its FIXVERSION-ID."
   (push fixversion-id org-jira-fixversion-id-history)
@@ -1056,7 +1071,7 @@ jql."
 
 ;;;###autoload
 (defun org-jira-get-summary ()
-  "Get issue summary from point and place next to issue id from jira"
+  "Get issue summary from point and place next to issue id from jira."
   (interactive)
   (let ((jira-id (thing-at-point 'symbol)))
     (unless jira-id (error "ORG_JIRA_ERROR: JIRA-ID missing in org-jira-get-summary!"))
@@ -1066,7 +1081,7 @@ jql."
 
 ;;;###autoload
 (defun org-jira-get-summary-url ()
-  "Get issue summary from point and place next to issue id from jira, and make issue id a link"
+  "Get issue summary from point and place next to issue id from jira, and make issue id a link."
   (interactive)
   (let ((jira-id (thing-at-point 'symbol)))
     (insert (format "[[%s][%s]] - %s"
@@ -1561,7 +1576,10 @@ ISSUES is a list of `org-jira-sdk-issue' records."
   (let* ((issue-id (org-jira-get-from-org 'issue 'key)) ; Really the key
          (filename (org-jira-filename))
          (comment-id (org-jira-get-from-org 'comment 'id))
-         (comment (replace-regexp-in-string "^  " "" (org-jira-get-comment-body comment-id))))
+         (comment (replace-regexp-in-string
+                   "^  " ""
+                   (org-jira-parse-comment
+                    (org-jira-get-comment-body comment-id)))))
     (lexical-let ((issue-id issue-id)
                   (filename filename))
       (let ((callback-edit
@@ -1762,15 +1780,18 @@ Expects input in format such as: [2017-04-05 Wed 01:00]--[2017-04-05 Wed 01:46] 
       (kill-region (point-min) (point-max)))))
 
 (defun org-jira-get-comment-id (comment)
+  "Return id of COMMENT."
   (org-jira-find-value comment 'id))
 
 (defun org-jira-get-comment-author (comment)
+  "Return author of COMMENT."
   (org-jira-find-value comment 'author 'displayName))
 
 (defun org-jira-isa-ignored-comment? (comment)
   (member-ignore-case (oref comment author) org-jira-ignore-comment-user-list))
 
 (defun org-jira-maybe-reverse-comments (comments)
+  "Return COMMENTS reverse if `org-jira-reverse-comment-order'."
   (if org-jira-reverse-comment-order (reverse comments) comments))
 
 (defun org-jira-extract-comments-from-data (data)
@@ -1802,7 +1823,10 @@ Expects input in format such as: [2017-04-05 Wed 01:00]--[2017-04-05 Wed 01:46] 
           (org-jira-entry-put (point) "updated" updated))
         (goto-char (point-max))
         ;;  Insert 2 spaces of indentation so Jira markup won't cause org-markup
-        (org-jira-insert (replace-regexp-in-string "^" "  " (or body "")))))))
+        (org-jira-insert
+         (replace-regexp-in-string
+          "^" "  " (org-jira-parse-comment
+                    (or body "") t)))))))
 
 (defun org-jira-update-comments-for-issue (Issue)
   "Update the comments for the specified ISSUE issue."
@@ -2015,6 +2039,13 @@ purpose of wiping an old subtree."
 
 ;;;###autoload
 (defun org-jira-get-subtasks ()
+  "Get subtasks for the current issue."
+  (interactive)
+  (ensure-on-issue
+    (org-jira-get-issues-headonly (jiralib-do-jql-search (format "parent = %s" (org-jira-parse-issue-id))))))
+
+;;;###autoload
+(defun org-jira-get-partent ()
   "Get subtasks for the current issue."
   (interactive)
   (ensure-on-issue
