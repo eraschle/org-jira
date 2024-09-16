@@ -150,6 +150,13 @@
   :group 'org-jira
   :type 'directory)
 
+
+(defcustom org-jira-use-account-id t
+  "boolean value to control whether using accountId or username."
+  :group 'org-jira
+  :type 'boolean)
+
+
 (defcustom org-jira-project-filename-alist nil
   "Alist translating project keys to filenames.
 
@@ -767,7 +774,13 @@ it isn't already on."
   (cdr (assoc 'displayName (jiralib-get-user account-id))))
 
 
-;; This is mapped to accountId and not username, so we need nil not blank string.
+(defun org-jira--get-user-or-accountId (user)
+  "Return name or accountId of USER based on `org-jira-use-account-id'."
+  (if org-jira-use-account-id
+      (assoc 'accountId user)
+    (assoc 'name user)))
+
+
 (defun org-jira-get-assignable-users (project-key)
   "Get the list of assignable users for PROJECT-KEY.
 adding user set jira-users first."
@@ -1068,6 +1081,39 @@ jql."
   (push fixversion-id org-jira-fixversion-id-history)
   (let ((jql (format "fixVersion = \"%s\""  fixversion-id)))
     (jiralib-do-jql-search jql)))
+
+
+(defun org-jira-transform-content-with (content command)
+  "Return transformed CONTENT with COMMAND."
+  (with-temp-buffer
+    (insert content)
+    (with-output-to-string
+      (let ((begin (buffer-end -1))
+            (end   (buffer-end 1)))
+        (shell-command-on-region begin end command standard-output)))))
+
+
+(defvar org-jira-convert-executable "/home/elyo/.npm-packages/lib/node_modules/j2m/index.js"
+  "Path to the convert script.")
+
+(defvar org-jira-to-org-command
+  (concat org-jira-convert-executable " --to_markdown --stdin | pandoc -f markdown -w org")
+  "Command to convert jira to org format.")
+
+(defun org-jira-convert-org-to-jira (content)
+  "Convert org CONTENT to jira format."
+  (org-jira-transform-content-with content org-jira-to-org-command))
+
+
+(defvar org-jira-to-jira-command
+  (concat "pandoc -f org -w markdown | " org-jira-convert-executable " --to_jira --stdin")
+  "Command to convert org to jira format.")
+
+
+(defun org-jira-convert-jira-to-org (content)
+  "Convert jira CONTENT to org format."
+  (org-jira-transform-content-with content org-jira-to-jira-command))
+
 
 ;;;###autoload
 (defun org-jira-get-summary ()
@@ -1578,7 +1624,7 @@ ISSUES is a list of `org-jira-sdk-issue' records."
          (comment-id (org-jira-get-from-org 'comment 'id))
          (comment (replace-regexp-in-string
                    "^  " ""
-                   (org-jira-parse-comment
+                   (org-jira-convert-org-to-jira
                     (org-jira-get-comment-body comment-id)))))
     (lexical-let ((issue-id issue-id)
                   (filename filename))
@@ -1825,8 +1871,7 @@ Expects input in format such as: [2017-04-05 Wed 01:00]--[2017-04-05 Wed 01:46] 
         ;;  Insert 2 spaces of indentation so Jira markup won't cause org-markup
         (org-jira-insert
          (replace-regexp-in-string
-          "^" "  " (org-jira-parse-comment
-                    (or body "") t)))))))
+          "^" "  " (or (org-jira-convert-jira-to-org body) "")))))))
 
 (defun org-jira-update-comments-for-issue (Issue)
   "Update the comments for the specified ISSUE issue."
